@@ -1,0 +1,57 @@
+{
+  "fusoHorario": "America/Manaus",
+  "modeloClaude": "sonnet",
+
+  "disciplinas": {
+    "arquitetura": {
+      "nome": "Arquitetura de Sistemas Digitais",
+      "apelidos": ["FTL065", "Arquitetura", "MIPS"],
+      "notionPageId": "<id-da-pagina-da-disciplina-no-notion>",
+      "codigoEcampus": "FTL065",
+      "classroom": { "conta": "ufam", "courseId": "<id-da-turma-no-classroom>" }
+    },
+    "lab_arquitetura": {
+      "nome": "Lab. de Arquitetura de Sistemas Digitais",
+      "apelidos": ["FTL067"],
+      "notionPageId": "<id-da-pagina-da-disciplina-no-notion>",
+      "codigoEcampus": "FTL067",
+      "somenteEcampus": true,
+      "classroom": null
+    },
+    "sociologia": {
+      "nome": "Sociologia do Trabalho",
+      "apelidos": ["Sociologia"],
+      "notionPageId": "<id-da-pagina-da-disciplina-no-notion>",
+      "codigoEcampus": "IHS041",
+      "classroom": { "conta": "pessoal", "courseId": "<id-da-turma-no-classroom>" }
+    }
+  },
+
+  "grade": [
+    { "dia": 1, "inicio": "10:00", "fim": "12:00", "disciplina": "sociologia", "sala": "Sala 14" },
+    { "dia": 1, "inicio": "14:00", "fim": "16:00", "disciplina": "arquitetura", "sala": "Lift 1" },
+    { "dia": 3, "inicio": "14:00", "fim": "16:00", "disciplina": "arquitetura", "sala": "Lift 1" },
+    { "dia": 5, "inicio": "14:00", "fim": "16:00", "disciplina": "arquitetura", "sala": "Lift 1", "rotulo": "Lab. Arquitetura" }
+  ],
+
+  "email": {
+    "ufam": { "ativo": true, "busca": "in:inbox {from:ufam.edu.br (-category:promotions -category:social)} -from:classroom.google.com" },
+    "pessoal": { "ativo": true, "busca": "in:inbox {from:ufam.edu.br (-category:promotions -category:social)} -from:classroom.google.com" }
+  },
+
+  "notion": {
+    "avaliacoesDbId": "<id-do-banco-avaliacoes-e-notas>",
+    "disciplinasDbId": "<id-do-banco-disciplinas>",
+    "demandasDbId": "<id-do-banco-demandas>"
+  },
+
+  "calendario": { "conta": "pessoal", "calendarId": "primary", "cor": "9" },
+
+  "ecampus": {
+    "ativo": true,
+    "urlLogin": "https://ecampus.ufam.edu.br/ecampus/home/loginValida",
+    "moduloNotas": "/ecampus/home/setModulo/22",
+    "paginasNotas": ["/ecampus/notasEFrequencia/index"],
+    "periodoNotas": { "ano": "auto", "periodo": "auto" }
+  }
+}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistente Acadêmico — Privacidade</title>
+<style>
+  :root { --texto: #1f2328; --fundo: #ffffff; --link: #0969da; }
+  @media (prefers-color-scheme: dark) { :root { --texto: #e6edf3; --fundo: #0d1117; --link: #4493f8; } }
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px;
+         line-height: 1.6; color: var(--texto); background: var(--fundo); }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; margin-top: 2rem; }
+</style>
+</head>
+<body>
+<h1>Assistente Acadêmico</h1>
+<p>Aplicativo de uso pessoal que organiza a agenda acadêmica (aulas, provas, entregas e avisos) a partir do
+Gmail e do Google Classroom. Código-fonte:
+<a href="https://github.com/samymallmann/assistente-academico">github.com/samymallmann/assistente-academico</a>.</p>
+
+<h2>Política de privacidade</h2>
+<p><strong>Dados acessados.</strong> Somente com autorização explícita do titular da conta, o aplicativo lê
+e-mails da caixa de entrada (somente leitura), turmas, avisos do mural e atividades do Google Classroom
+(somente leitura) e cria ou atualiza eventos no Google Calendar.</p>
+<p><strong>Uso.</strong> Os dados são usados apenas para identificar datas de provas, entregas,
+cancelamentos de aula e avisos, e para registrá-los na agenda pessoal do próprio titular
+(Google Calendar, Notion e Telegram).</p>
+<p><strong>Compartilhamento.</strong> Nenhum dado é vendido, publicado ou compartilhado com terceiros.
+O texto de e-mails e avisos é processado por um modelo de linguagem (Claude, da Anthropic) na conta do
+próprio titular, apenas para interpretar datas e avisos.</p>
+<p><strong>Armazenamento.</strong> O aplicativo não guarda cópia dos e-mails. Mantém apenas identificadores
+técnicos (para não repetir itens) em um repositório privado.</p>
+<p><strong>Revogação.</strong> O acesso pode ser revogado a qualquer momento em
+<a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</p>
+<p>O uso de informações recebidas das APIs do Google segue a
+<a href="https://developers.google.com/terms/api-services-user-data-policy">Política de dados do usuário dos serviços de API do Google</a>,
+incluindo os requisitos de uso limitado.</p>
+</body>
+</html>

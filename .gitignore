@@ -1,0 +1,11 @@
+# Segredos: nunca vão para o GitHub
+.env
+client_secret*.json
+
+__pycache__/
+*.pyc
+.venv/
+
+# Dados pessoais
+config.json
+state.json

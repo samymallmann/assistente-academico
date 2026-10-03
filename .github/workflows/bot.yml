@@ -1,0 +1,80 @@
+name: Bot da faculdade
+
+on:
+  # Disparo principal às 7:00 de Manaus vem do cron-job.org (pontual).
+  # Estes horários são a rede de segurança e as novas tentativas se o Claude estiver indisponível:
+  # 7:30, 8:30, ..., 13:30 em Manaus (UTC-4).
+  schedule:
+    - cron: "30 11-17 * * *"
+  workflow_dispatch:
+    inputs:
+      forcar:
+        description: "Rodar mesmo se já rodou hoje"
+        type: boolean
+        default: false
+      descobrir_ecampus:
+        description: "Só listar as páginas do eCampus (não roda o bot)"
+        type: boolean
+        default: false
+
+# Nunca roda duas execuções ao mesmo tempo (a segunda espera e lê o estado atualizado).
+concurrency:
+  group: bot-faculdade
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  rodar:
+    # Só roda em um repositório configurado (variável BOT_ATIVO = true em Settings → Variables).
+    if: vars.BOT_ATIVO == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Rodar o bot
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN_PESSOAL: ${{ secrets.GOOGLE_REFRESH_TOKEN_PESSOAL }}
+          GOOGLE_REFRESH_TOKEN_UFAM: ${{ secrets.GOOGLE_REFRESH_TOKEN_UFAM }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ECAMPUS_USUARIO: ${{ secrets.ECAMPUS_USUARIO }}
+          ECAMPUS_SENHA: ${{ secrets.ECAMPUS_SENHA }}
+        run: |
+          if [ "${{ inputs.descobrir_ecampus }}" = "true" ]; then
+            python -m bot.fontes.ecampus
+          else
+            python -m bot ${{ inputs.forcar && '--forcar' || '' }}
+          fi
+
+      # Guarda o estado (o que já foi visto) no próprio repositório.
+      - name: Salvar estado
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain state.json)" ]; then
+            git config user.name "bot-faculdade"
+            git config user.email "bot-faculdade@users.noreply.github.com"
+            git add state.json
+            git commit -m "Atualiza estado do bot"
+            git push
+          fi
