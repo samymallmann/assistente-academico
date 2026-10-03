@@ -83,6 +83,9 @@ def descobrir() -> None:
             r = _pagina_de_notas(s, p)
             print(f"\n=== {p} -> {r.url} (HTTP {r.status_code}) período {_periodo_atual()}")
             print(_tabela_para_texto(r.text)[:6000])
+            print("\n--- notas extraídas ---")
+            for n in _extrair_notas(_tabela_para_texto(r.text)):
+                print(n)
             print("\n--- links/paginação na resposta ---")
             print(re.findall(r'<a[^>]*href="([^"]+)"[^>]*>([^<]*)<', r.text)[:20])
         return
@@ -110,6 +113,9 @@ def _extrair_notas(tabela: str) -> list[dict]:
         celulas = [c.strip() for c in linha.split("|")]
         if celulas and celulas[0] == "CÓD.":
             colunas = celulas
+            continue
+        if celulas and celulas[0] == "CÓDIGO":
+            colunas = []  # começou a legenda "CÓDIGO | DISCIPLINA | TURMA": não é mais a tabela de notas
             continue
         if not colunas or not celulas or celulas[0] not in por_codigo:
             continue
