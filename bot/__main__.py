@@ -280,7 +280,9 @@ class Execucao:
             self.processar_eventos(resultado.get("eventos", []), {it["id"]: it for it in textos})
 
         # Tudo que estiver no Notion (inclusive o que você adicionar à mão) vai para o Google Calendar.
+        # Antes, o que já passou sai de "A fazer" (e some de Prioridades).
         if not self.teste:
+            self.tentar("Notion (itens passados)", lambda: notion.marcar_passados(self.hoje), None)
             self.tentar("Google Calendar (sincronização)", self.sincronizar_calendario, None)
 
         inicio, fim, _ = self.periodo_semana()

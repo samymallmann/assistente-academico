@@ -148,6 +148,25 @@ def itens_com_data(hoje: date) -> list[dict]:
     return itens
 
 
+def marcar_passados(hoje: date) -> int:
+    """Muda para 'Passou' o que ainda está 'A fazer' com data anterior a hoje (sai de Prioridades).
+
+    Períodos que ainda não terminaram (ex.: greve de vários dias) continuam 'A fazer'.
+    """
+    paginas = _consultar_tudo(CONFIG["notion"]["avaliacoesDbId"], {"and": [
+        {"property": "Status", "select": {"equals": "A fazer"}},
+        {"property": "Data", "date": {"before": hoje.isoformat()}},
+    ]})
+    marcados = 0
+    for p in paginas:
+        data = p["properties"]["Data"]["date"]
+        if date.fromisoformat((data.get("end") or data["start"])[:10]) >= hoje:
+            continue
+        _notion("PATCH", f'/pages/{p["id"]}', {"properties": {"Status": {"select": {"name": "Passou"}}}})
+        marcados += 1
+    return marcados
+
+
 def proximas_avaliacoes(hoje: date, ate: date) -> list[dict]:
     """Itens com status 'A fazer' entre hoje e `ate` (para o resumo do dia)."""
     r = _notion("POST", f'/databases/{CONFIG["notion"]["avaliacoesDbId"]}/query', {
