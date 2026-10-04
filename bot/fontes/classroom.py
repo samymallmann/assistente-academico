@@ -6,12 +6,32 @@ from ..util import CONFIG, FUSO
 BASE = "https://classroom.googleapis.com/v1/courses"
 
 
+_cache_turmas: list[dict] | None = None
+
+
 def _turmas() -> list[dict]:
-    return [
-        {"chave": chave, **d["classroom"]}
-        for chave, d in CONFIG["disciplinas"].items()
-        if d.get("classroom") and conta_configurada(d["classroom"]["conta"])
-    ]
+    """Todas as turmas ativas das contas configuradas.
+
+    Turmas do config.json vêm com a chave da disciplina; turmas novas (ex.: semestre seguinte)
+    entram com chave None e o nome da turma, e o Claude deduz a disciplina pelo texto.
+    """
+    global _cache_turmas
+    if _cache_turmas is not None:
+        return _cache_turmas
+    conhecidas = {d["classroom"]["courseId"]: chave
+                  for chave, d in CONFIG["disciplinas"].items() if d.get("classroom")}
+    contas = {d["classroom"]["conta"] for d in CONFIG["disciplinas"].values() if d.get("classroom")}
+    contas |= {c for c in CONFIG["email"]}  # contas Google que o bot já usa
+    turmas = []
+    for conta in sorted(contas):
+        if not conta_configurada(conta):
+            continue
+        r = google(conta, BASE, params={"courseStates": "ACTIVE", "pageSize": 50})
+        for c in r.get("courses", []):
+            turmas.append({"chave": conhecidas.get(c["id"]), "conta": conta,
+                           "courseId": c["id"], "nome": c.get("name", "")})
+    _cache_turmas = turmas
+    return turmas
 
 
 def _data_api(texto: str) -> datetime:
@@ -31,6 +51,7 @@ def buscar_avisos(desde: datetime) -> list[dict]:
                 "id": f'mural:{t["courseId"]}:{a["id"]}',
                 "origem": "Classroom – mural",
                 "disciplina": t["chave"],
+                "turma": t["nome"],
                 "quando": a["updateTime"],
                 "texto": a.get("text", ""),
                 "link": a.get("alternateLink"),

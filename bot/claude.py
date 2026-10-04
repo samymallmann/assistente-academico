@@ -62,6 +62,8 @@ def _descrever_item(it: dict) -> str:
     linhas = [f'### ITEM {it["id"]}', f'Origem: {it["origem"]}']
     if it.get("disciplina"):
         linhas[-1] += f' (disciplina: {it["disciplina"]})'
+    elif it.get("turma"):
+        linhas[-1] += f' (turma do Classroom: "{it["turma"]}" — deduza a disciplina pelo nome/texto, ou null)'
     if it.get("de"):
         linhas.append(f'De: {it["de"]}')
     if it.get("assunto"):
