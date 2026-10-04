@@ -57,7 +57,7 @@ Exemplo do resumo diário:
 ```mermaid
 flowchart LR
     subgraph Gatilho
-        CR["cron do GitHub Actions<br/>06:50 + novas tentativas até 13:30"] --> GA
+        CR["cron do GitHub Actions<br/>06:40 + novas tentativas até 13:30"] --> GA
     end
     GA["GitHub Actions<br/>python -m bot"]
 

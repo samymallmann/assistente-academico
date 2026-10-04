@@ -1,10 +1,10 @@
 name: Bot da faculdade
 
 on:
-  # Horários de Manaus (UTC-4). O GitHub costuma atrasar de 5 a 15 min, então 6:50 chega por volta das 7h.
+  # Horários de Manaus (UTC-4). O GitHub costuma atrasar de 5 a 15 min, então 6:40 chega antes das 7h.
   # As execuções seguintes só trabalham se a primeira falhar (ex.: Claude indisponível).
   schedule:
-    - cron: "50 10 * * *"      # 6:50
+    - cron: "40 10 * * *"      # 6:40
     - cron: "30 11-17 * * *"   # 7:30, 8:30, ..., 13:30 (novas tentativas)
   workflow_dispatch:
     inputs:
