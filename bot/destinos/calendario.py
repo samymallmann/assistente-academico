@@ -14,6 +14,8 @@ def salvar_evento(estado: dict, id_externo: str, titulo: str, descricao: str,
         return
     if hora:
         inicio = datetime.fromisoformat(f"{data}T{hora}:00-04:00")
+        if hora == "23:59":  # prazo até o fim do dia: o evento termina no limite, sem invadir o dia seguinte
+            inicio -= timedelta(minutes=duracao_min)
         corpo = {
             "start": {"dateTime": inicio.isoformat(), "timeZone": CONFIG["fusoHorario"]},
             "end": {"dateTime": (inicio + timedelta(minutes=duracao_min)).isoformat(), "timeZone": CONFIG["fusoHorario"]},
