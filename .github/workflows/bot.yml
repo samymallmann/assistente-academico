@@ -1,11 +1,11 @@
 name: Bot da faculdade
 
 on:
-  # Disparo principal às 7:00 de Manaus vem do cron-job.org (pontual).
-  # Estes horários são a rede de segurança e as novas tentativas se o Claude estiver indisponível:
-  # 7:30, 8:30, ..., 13:30 em Manaus (UTC-4).
+  # Horários de Manaus (UTC-4). O GitHub costuma atrasar de 5 a 15 min, então 6:50 chega por volta das 7h.
+  # As execuções seguintes só trabalham se a primeira falhar (ex.: Claude indisponível).
   schedule:
-    - cron: "30 11-17 * * *"
+    - cron: "50 10 * * *"      # 6:50
+    - cron: "30 11-17 * * *"   # 7:30, 8:30, ..., 13:30 (novas tentativas)
   workflow_dispatch:
     inputs:
       forcar:

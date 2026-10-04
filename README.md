@@ -57,8 +57,7 @@ Exemplo do resumo diário:
 ```mermaid
 flowchart LR
     subgraph Gatilho
-        CJ["cron-job.org<br/>07:00 em ponto"] --> GA
-        CR["cron do GitHub<br/>07:30–13:30 (reserva)"] --> GA
+        CR["cron do GitHub Actions<br/>06:50 + novas tentativas até 13:30"] --> GA
     end
     GA["GitHub Actions<br/>python -m bot"]
 
@@ -164,4 +163,4 @@ config.example.json    disciplinas, grade, filtros de e-mail e IDs do Notion
 ## Stack
 
 Python 3.12 · `requests` · Google Classroom / Gmail / Calendar APIs · Notion API · Telegram Bot API ·
-Claude Code · GitHub Actions · cron-job.org
+Claude Code · GitHub Actions
