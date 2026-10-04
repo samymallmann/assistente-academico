@@ -26,12 +26,22 @@ def _turmas() -> list[dict]:
     for conta in sorted(contas):
         if not conta_configurada(conta):
             continue
-        r = google(conta, BASE, params={"courseStates": "ACTIVE", "pageSize": 50})
+        # Só turmas em que a conta é aluna (turmas criadas por ela, como testes, ficam de fora).
+        r = google(conta, BASE, params={"courseStates": "ACTIVE", "studentId": "me", "pageSize": 50})
         for c in r.get("courses", []):
             turmas.append({"chave": conhecidas.get(c["id"]), "conta": conta,
                            "courseId": c["id"], "nome": c.get("name", "")})
     _cache_turmas = turmas
     return turmas
+
+
+def _ler_turma(t: dict, recurso: str, params: dict) -> dict:
+    """Lê um recurso de uma turma; se só essa turma falhar, segue com as outras."""
+    try:
+        return google(t["conta"], f'{BASE}/{t["courseId"]}/{recurso}', params=params)
+    except RuntimeError as e:
+        print(f'Classroom: pulei a turma "{t["nome"]}" ({recurso}): {str(e)[:150]}')
+        return {}
 
 
 def _data_api(texto: str) -> datetime:
@@ -42,8 +52,7 @@ def buscar_avisos(desde: datetime) -> list[dict]:
     """Avisos do mural publicados ou editados desde `desde`."""
     itens = []
     for t in _turmas():
-        r = google(t["conta"], f'{BASE}/{t["courseId"]}/announcements',
-                   params={"pageSize": 20, "orderBy": "updateTime desc"})
+        r = _ler_turma(t, "announcements", {"pageSize": 20, "orderBy": "updateTime desc"})
         for a in r.get("announcements", []):
             if _data_api(a["updateTime"]) < desde:
                 continue
@@ -74,8 +83,7 @@ def buscar_atividades(vistas: dict) -> list[dict]:
     """Atividades novas ou alteradas desde a última execução (compara updateTime)."""
     itens = []
     for t in _turmas():
-        r = google(t["conta"], f'{BASE}/{t["courseId"]}/courseWork',
-                   params={"pageSize": 50, "orderBy": "updateTime desc"})
+        r = _ler_turma(t, "courseWork", {"pageSize": 50, "orderBy": "updateTime desc"})
         for cw in r.get("courseWork", []):
             id_ = f'atividade:{t["courseId"]}:{cw["id"]}'
             if vistas.get(id_) == cw["updateTime"]:
