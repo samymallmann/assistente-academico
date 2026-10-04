@@ -89,7 +89,9 @@ Identifique tudo que afeta a agenda:
   Se for suspensão GERAL da UFAM (greve, nota oficial da reitoria, falta de energia no campus...), gere UM evento com
   "abrangencia": "ufam", "disciplina": null e o período em "data"/"data_fim". Se for só de uma disciplina, "abrangencia": "disciplina".
 - prova, entrega, trabalho, lista, apresentação, ponto extra (com data)
-- adiamento ou mudança de data, horário ou sala
+- adiamento ou mudança de data de prova/entrega: use o TIPO ORIGINAL (prova, trabalho, lista...) com a NOVA data,
+  e diga no resumo que foi adiada (de quando para quando)
+- mudança de sala ou de horário de aula (tipo "mudanca")
 - outro aviso importante que exija ação
 
 Ignore propaganda, newsletters, eventos opcionais e qualquer coisa sem impacto na agenda.
