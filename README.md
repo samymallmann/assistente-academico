@@ -22,7 +22,7 @@ agenda no **Notion**, no **Google Calendar** e no **Telegram**.
 
 | Destino | O que recebe |
 |---|---|
-| **Notion** | Banco "Avaliações e Notas", banco "Disciplinas" (média, faltas, limite de faltas) e página "Minha Semana" |
+| **Notion** | Painel do semestre (grade da semana, prioridades, estudos, calendário e galeria de disciplinas) alimentado pelos bancos "Avaliações e Notas", "Disciplinas" (média, faltas, limite de faltas) e "Demandas" |
 | **Google Calendar** | Um evento para cada prova, entrega, demanda e aula cancelada, com lembrete de 1 dia |
 | **Telegram** | Resumo diário às 7h |
 
@@ -32,6 +32,8 @@ Exemplo do resumo diário:
 🌅 Bom dia! Quinta, 08/10
 
 ⚠️ Atenção
+🔁 1ª Prova Escrita mudou de Seg 05/10 para Quarta 07/10 às 10:00
+    O professor avisou por e-mail que a prova foi adiada.
 ❌ Sem aula de Comunicações Digitais — Quinta 08/10
     Motivo: Professor em banca de defesa
     Avisado pelo representante da turma.
@@ -89,6 +91,12 @@ flowchart LR
   recebimento de cada item, e pede um JSON com `tipo`, `disciplina`, `data`, `data_fim`, `motivo` e
   `abrangencia` (uma disciplina ou a universidade toda). Datas relativas ("quinta que vem") são
   resolvidas a partir da data do e-mail, não da execução.
+- **Contexto do que já existe.** Junto com os textos novos, o prompt recebe as provas e entregas já
+  registradas (com códigos curtos `R1`, `R2`...). Duas regras de negócio saem daí:
+  - quando o próprio professor **muda a data** de uma avaliação, vale a última informação: o item existente
+    é atualizado (`"substitui": "R1"`) em vez de duplicado;
+  - **aula cancelada nunca apaga prova**: se uma aula é suspensa (clima, greve, reunião) no dia de uma prova,
+    os dois avisos são mostrados — o professor da prova pode não estar ciente da suspensão.
 - **Claude sem custo extra.** Em vez da API paga, o bot roda o Claude Code em modo não interativo
   (`claude -p --output-format json`) autenticado com um token OAuth da assinatura Pro
   (`claude setup-token`), guardado como secret.
@@ -107,6 +115,13 @@ flowchart LR
   continuam e o problema aparece no resumo do Telegram.
 - **Primeira execução silenciosa.** Na primeira vez, tudo o que já existe é importado sem gerar
   "novidades", para o Telegram não receber dezenas de mensagens.
+- **Turmas descobertas sozinhas.** O bot lista as turmas ativas em que a conta é **aluna**; turmas novas
+  (semestre seguinte) entram automaticamente e o modelo deduz a disciplina pelo nome. Uma turma com erro
+  de permissão é pulada sem afetar as outras.
+- **Agenda que se limpa.** Avaliações com data passada mudam para o status "Passou" e saem das prioridades,
+  mas continuam no banco para o histórico de notas; suspensões de vários dias só saem quando terminam.
+- **Notion → Calendar.** Tudo que tem data no Notion (inclusive o que é criado à mão) é espelhado no
+  Google Calendar; se a data muda no Notion, o evento acompanha.
 - **Fuso horário explícito.** Prazos do Classroom vêm em UTC e são convertidos para America/Manaus.
 - **Engenharia reversa leve do eCampus.** A página de notas carrega a tabela via AJAX
   (`POST notasEFrequencia/getNotas` com ano e período); o bot chama esse endpoint direto e converte a
