@@ -120,9 +120,37 @@ class Execucao:
             self.novidades.append(f"📥 Primeira execução: li {len(atividades)} atividades do Classroom "
                                   f"e adicionei {importadas} com prazo futuro ao Notion e ao Calendar.")
 
-    def processar_eventos(self, eventos, itens_por_id):
+    def mudar_data_registrada(self, ev, registrado, item):
+        """O professor mudou a data de uma prova/entrega já registrada: atualiza em vez de duplicar."""
+        nova, hora = ev.get("data"), ev.get("hora")
+        antiga = para_data(registrado["data"])
+        quem = ev.get("resumo", "")
+        obs = (registrado["observacoes"] + "\n" if registrado["observacoes"] else "") + \
+            f"Data alterada de {data_br(antiga)} para {data_br(para_data(nova))}: {quem}"
+        if item.get("link"):
+            obs += f'\n{item["link"]}'
+        if not self.teste:
+            notion.mudar_data(registrado["pagina"], nova, hora, obs)
+            chave = registrado["id_externo"] if registrado["id_externo"] in self.estado.get("eventosCalendario", {}) else None
+            if chave:  # evento criado pelo bot; os demais são atualizados pela sincronização logo depois
+                self.tentar("Google Calendar", lambda: calendario.salvar_evento(
+                    self.estado, chave, f'{ICONES.get(TIPO_NOTION_PARA_ICONE.get(registrado["tipo"], ""), "📌")} {registrado["titulo"]}',
+                    obs, nova, hora), None)
+        d = para_data(nova)
+        linha = (f'🔁 <b>{escape(registrado["titulo"])}</b> mudou de {nome_dia(antiga)[:3]} {data_br(antiga)} '
+                 f'para <b>{nome_dia(d)} {data_br(d)}</b>' + (f" às {hora}" if hora else "") +
+                 f'\n    <i>{escape(quem)}</i>')
+        (self.urgentes if ev.get("urgente") else self.novidades).append(linha)
+
+    def processar_eventos(self, eventos, itens_por_id, registrados=None):
+        registrados = registrados or []
         for ev in eventos:
             item = itens_por_id.get(ev.get("item"), {})
+            ref = str(ev.get("substitui") or "")
+            if ref.startswith("R") and ref[1:].isdigit() and 1 <= int(ref[1:]) <= len(registrados) and ev.get("data"):
+                self.tentar("Notion (mudança de data)",
+                            lambda: self.mudar_data_registrada(ev, registrados[int(ref[1:]) - 1], item), None)
+                continue
             tipo = ev.get("tipo", "aviso")
             geral = ev.get("abrangencia") == "ufam"
             disc = None if geral else ev.get("disciplina")
@@ -272,12 +300,13 @@ class Execucao:
 
         textos = emails + avisos
         if textos:
+            registrados = self.tentar("Notion (pendentes)", lambda: notion.avaliacoes_pendentes(self.hoje), [])
             try:
-                resultado = interpretar(self.hoje, textos)
+                resultado = interpretar(self.hoje, textos, registrados)
             except ClaudeIndisponivel as e:
                 self.modo_reserva(textos, str(e))
                 return
-            self.processar_eventos(resultado.get("eventos", []), {it["id"]: it for it in textos})
+            self.processar_eventos(resultado.get("eventos", []), {it["id"]: it for it in textos}, registrados)
 
         # Tudo que estiver no Notion (inclusive o que você adicionar à mão) vai para o Google Calendar.
         # Antes, o que já passou sai de "A fazer" (e some de Prioridades).

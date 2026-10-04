@@ -72,7 +72,17 @@ def _descrever_item(it: dict) -> str:
     return "\n".join(linhas)
 
 
-def interpretar(hoje: date, itens: list[dict]) -> dict:
+def _descrever_registrados(registrados: list[dict]) -> str:
+    if not registrados:
+        return "(nenhum)"
+    return "\n".join(
+        f'- R{i}: {r["titulo"]} | {r["tipo"]} | {r["disciplina"] or "sem disciplina"} | {r["data"][:16].replace("T", " ")}'
+        for i, r in enumerate(registrados, 1)
+    )
+
+
+def interpretar(hoje: date, itens: list[dict], registrados: list[dict] | None = None) -> dict:
+    registrados = registrados or []
     prompt = f"""Você organiza a agenda acadêmica de quem estuda engenharia na UFAM.
 Hoje é {nome_dia(hoje)}, {data_br(hoje)} ({hoje.isoformat()}). Fuso: Manaus.
 
@@ -94,6 +104,19 @@ Identifique tudo que afeta a agenda:
 - mudança de sala ou de horário de aula (tipo "mudanca")
 - outro aviso importante que exija ação
 
+Provas e entregas JÁ REGISTRADAS (pendentes):
+{_descrever_registrados(registrados)}
+
+Regras sobre itens já registrados:
+- Se o aviso MUDA A DATA de uma prova/entrega já registrada (adiada, antecipada, remarcada) — normalmente avisado
+  pelo próprio professor — vale a última informação: gere o evento com a nova data e "substitui": "R<n>".
+  Use "substitui" SOMENTE quando for claramente a mesma avaliação da mesma disciplina.
+- Aula cancelada (clima, greve, reunião, falta de energia...) NUNCA cancela nem substitui uma prova/entrega:
+  gere só o evento "aula_cancelada" e deixe a prova como está. Se o aviso de cancelamento também disser
+  explicitamente que a PROVA foi adiada para outra data, aí sim trate como mudança de data da prova.
+- Se a prova/entrega já registrada for apenas mencionada de novo, sem mudança, não gere evento.
+- Os códigos R<n> são internos: use-os só no campo "substitui", nunca no título ou no resumo.
+
 Ignore propaganda, newsletters, eventos opcionais e qualquer coisa sem impacto na agenda.
 Resolva datas relativas ("amanhã", "próxima segunda") a partir da data em que o item foi RECEBIDO.
 Se o texto não disser a disciplina mas der para deduzir pelo horário, professor ou assunto, deduza; se não der, use null.
@@ -112,6 +135,7 @@ Responda APENAS com um JSON neste formato, sem texto antes ou depois:
       "motivo": "<motivo do cancelamento/mudança, curto, ou null se o texto não disser>",
       "titulo": "<curto, ex.: 'Sem aula de Controle' ou '1ª prova de Sociologia'>",
       "resumo": "<uma frase explicando, citando quem avisou>",
+      "substitui": "<R<n> se muda a data de um item já registrado, senão null>",
       "urgente": <true se afeta hoje ou amanhã>
     }}
   ]

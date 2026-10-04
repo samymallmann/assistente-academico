@@ -148,6 +148,38 @@ def itens_com_data(hoje: date) -> list[dict]:
     return itens
 
 
+def avaliacoes_pendentes(hoje: date) -> list[dict]:
+    """Provas/entregas 'A fazer' de hoje em diante (para o Claude saber o que já está registrado)."""
+    paginas_para_chave = {d["notionPageId"].replace("-", ""): k for k, d in CONFIG["disciplinas"].items()}
+    itens = []
+    for p in _consultar_tudo(CONFIG["notion"]["avaliacoesDbId"], {"and": [
+        {"property": "Status", "select": {"equals": "A fazer"}},
+        {"property": "Data", "date": {"on_or_after": hoje.isoformat()}},
+    ]}):
+        props = p["properties"]
+        tipo = (props["Tipo"]["select"] or {}).get("name")
+        if tipo in ("Aula cancelada", "Aviso"):
+            continue
+        rel = props["Disciplina"]["relation"]
+        itens.append({
+            "pagina": p["id"], "titulo": _titulo(props), "tipo": tipo,
+            "data": props["Data"]["date"]["start"],
+            "disciplina": paginas_para_chave.get(rel[0]["id"].replace("-", "")) if rel else None,
+            "id_externo": "".join(t["plain_text"] for t in props["ID externo"]["rich_text"]),
+            "observacoes": "".join(t["plain_text"] for t in props["Observações"]["rich_text"]),
+        })
+    return itens
+
+
+def mudar_data(pagina_id: str, data: str, hora: str | None, observacoes: str) -> None:
+    """O próprio professor mudou a data: atualiza o item existente (vale a última informação)."""
+    inicio = f"{data}T{hora}:00-04:00" if hora else data
+    _notion("PATCH", f"/pages/{pagina_id}", {"properties": {
+        "Data": {"date": {"start": inicio}},
+        "Observações": {"rich_text": _texto(observacoes)},
+    }})
+
+
 def marcar_passados(hoje: date) -> int:
     """Muda para 'Passou' o que ainda está 'A fazer' com data anterior a hoje (sai de Prioridades).
 
