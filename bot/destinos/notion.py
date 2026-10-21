@@ -199,25 +199,28 @@ def marcar_passados(hoje: date) -> int:
     return marcados
 
 
-def proximas_avaliacoes(hoje: date, ate: date) -> list[dict]:
-    """Itens com status 'A fazer' entre hoje e `ate` (para o resumo do dia)."""
-    r = _notion("POST", f'/databases/{CONFIG["notion"]["avaliacoesDbId"]}/query', {
-        "filter": {"and": [
-            {"property": "Status", "select": {"equals": "A fazer"}},
-            {"property": "Data", "date": {"on_or_after": hoje.isoformat()}},
-            {"property": "Data", "date": {"on_or_before": ate.isoformat()}},
-        ]},
-        "sorts": [{"property": "Data", "direction": "ascending"}],
-    })
+def proximas_avaliacoes(desde: date, ate: date) -> list[dict]:
+    """Itens 'A fazer' com início entre `desde` e `ate` (para o resumo do dia).
+
+    `desde` pode ser alguns dias antes de hoje, para pegar períodos que começaram antes e ainda valem
+    (ex.: suspensão de segunda a quarta).
+    """
     paginas_para_chave = {d["notionPageId"].replace("-", ""): k for k, d in CONFIG["disciplinas"].items()}
     itens = []
-    for p in r["results"]:
+    for p in _consultar_tudo(CONFIG["notion"]["avaliacoesDbId"], {"and": [
+        {"property": "Status", "select": {"equals": "A fazer"}},
+        {"property": "Data", "date": {"on_or_after": desde.isoformat()}},
+        {"property": "Data", "date": {"on_or_before": ate.isoformat()}},
+    ]}):
         props = p["properties"]
         relacao = props["Disciplina"]["relation"]
         itens.append({
             "titulo": "".join(t["plain_text"] for t in props["Avaliação"]["title"]),
             "tipo": (props["Tipo"]["select"] or {}).get("name"),
             "data": props["Data"]["date"]["start"],
+            "fim": props["Data"]["date"].get("end"),
             "disciplina": paginas_para_chave.get(relacao[0]["id"].replace("-", "")) if relacao else None,
+            "observacoes": "".join(t["plain_text"] for t in props["Observações"]["rich_text"]),
         })
+    itens.sort(key=lambda it: it["data"])
     return itens

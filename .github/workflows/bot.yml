@@ -12,6 +12,14 @@ on:
         description: "Rodar mesmo se já rodou hoje"
         type: boolean
         default: false
+      verificar:
+        description: "Depois do resumo do dia: só manda mensagem se chegou algo novo"
+        type: boolean
+        default: false
+      descobrir_ufam:
+        description: "Só listar as notícias/portarias da UFAM (não roda o bot)"
+        type: boolean
+        default: false
       descobrir_ecampus:
         description: "Só listar as páginas do eCampus (não roda o bot)"
         type: boolean
@@ -61,10 +69,12 @@ jobs:
           ECAMPUS_USUARIO: ${{ secrets.ECAMPUS_USUARIO }}
           ECAMPUS_SENHA: ${{ secrets.ECAMPUS_SENHA }}
         run: |
-          if [ "${{ inputs.descobrir_ecampus }}" = "true" ]; then
+          if [ "${{ inputs.descobrir_ufam }}" = "true" ]; then
+            python -m bot.fontes.ufam
+          elif [ "${{ inputs.descobrir_ecampus }}" = "true" ]; then
             python -m bot.fontes.ecampus
           else
-            python -m bot ${{ inputs.forcar && '--forcar' || '' }}
+            python -m bot ${{ inputs.forcar && '--forcar' || '' }} ${{ inputs.verificar && '--verificar' || '' }}
           fi
 
       # Guarda o estado (o que já foi visto) no próprio repositório.

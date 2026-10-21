@@ -4,6 +4,7 @@ Uso:
     python -m bot            execução normal
     python -m bot --teste    não grava nada (Notion, Calendar, estado) e imprime a mensagem em vez de enviar
     python -m bot --forcar   roda mesmo se já tiver rodado hoje
+    python -m bot --verificar  depois do resumo do dia: só avisa no Telegram se chegou algo novo
 """
 import argparse
 import re
@@ -17,8 +18,9 @@ from .destinos import calendario, notion, telegram
 from .fontes.classroom import buscar_atividades, buscar_avisos
 from .fontes.ecampus import ler_ecampus
 from .fontes.gmail import buscar_emails
+from .fontes.ufam import buscar_noticias
 from .palavras_chave import detectar_urgentes
-from .util import (CONFIG, agora, carregar_estado, data_br, dia_grade, mais_dias, nome_dia,
+from .util import (CONFIG, agora, carregar_estado, data_br, mais_dias, nome_dia,
                    nome_disciplina, para_data, salvar_estado)
 
 ICONES = {
@@ -51,9 +53,8 @@ class Execucao:
         self.hoje = self.inicio.date()
         self.erros: list[str] = []
         self.novidades: list[str] = []
-        self.urgentes: list[str] = []
-        self.cancelamentos_hoje: dict[str, str | None] = {}  # disciplina -> motivo
-        self.suspensao_geral: str | None = None  # motivo, se a UFAM toda estiver sem aula hoje
+        # Avisos interpretados pelo Claude nesta execução: {"linha", "urgente", "tipo", "inicio", "fim"}
+        self.avisos: list[dict] = []
 
     def tentar(self, nome: str, funcao, padrao):
         try:
@@ -140,7 +141,7 @@ class Execucao:
         linha = (f'🔁 <b>{escape(registrado["titulo"])}</b> mudou de {nome_dia(antiga)[:3]} {data_br(antiga)} '
                  f'para <b>{nome_dia(d)} {data_br(d)}</b>' + (f" às {hora}" if hora else "") +
                  f'\n    <i>{escape(quem)}</i>')
-        (self.urgentes if ev.get("urgente") else self.novidades).append(linha)
+        self.avisos.append({"linha": linha, "urgente": bool(ev.get("urgente")), "tipo": "mudanca", "inicio": d, "fim": None})
 
     def processar_eventos(self, eventos, itens_por_id, registrados=None):
         registrados = registrados or []
@@ -167,13 +168,6 @@ class Execucao:
                 self.tentar("Notion", lambda: self.gravar(id_externo, ev["titulo"], tipo, origem, disc, ev.get("data"),
                                                           ev.get("hora"), obs, ev.get("data_fim")), None)
 
-            # Cancelamento que vale para hoje: risca as aulas na mensagem.
-            if tipo == "aula_cancelada" and inicio and inicio <= self.hoje <= (fim or inicio):
-                if geral:
-                    self.suspensao_geral = motivo or "motivo não informado"
-                elif disc:
-                    self.cancelamentos_hoje[disc] = motivo
-
             if inicio and fim and fim != inicio:
                 quando = f" — de {nome_dia(inicio)[:3]} {data_br(inicio)} a {nome_dia(fim)[:3]} {data_br(fim)}"
             elif inicio:
@@ -186,7 +180,8 @@ class Execucao:
                 linha += f"\n    Motivo: <b>{escape(motivo)}</b>"
             if ev.get("resumo"):
                 linha += f'\n    <i>{escape(ev["resumo"])}</i>'
-            (self.urgentes if ev.get("urgente") or tipo == "aula_cancelada" else self.novidades).append(linha)
+            self.avisos.append({"linha": linha, "urgente": bool(ev.get("urgente")) or tipo == "aula_cancelada",
+                                "tipo": tipo, "inicio": inicio, "fim": fim})
 
     def processar_notas(self, notas):
         """Atualiza o Notion e avisa no Telegram só quando nota ou falta muda no eCampus."""
@@ -214,24 +209,6 @@ class Execucao:
 
     # ---------- mensagem ----------
 
-    def aulas_de_hoje(self) -> list[str]:
-        linhas = []
-        if self.suspensao_geral:
-            linhas.append(f"  🏛️ <b>UFAM sem aulas hoje</b> — {escape(self.suspensao_geral)}")
-        for g in CONFIG["grade"]:
-            if g["dia"] != dia_grade(self.hoje):
-                continue
-            nome = escape(g.get("rotulo") or nome_disciplina(g["disciplina"]))
-            sala = f' · {escape(g["sala"])}' if g["sala"] else ""
-            if self.suspensao_geral:
-                linhas.append(f'  <s>{g["inicio"]}–{g["fim"]} {nome}</s>')
-            elif g["disciplina"] in self.cancelamentos_hoje:
-                motivo = self.cancelamentos_hoje[g["disciplina"]]
-                linhas.append(f'  <s>{g["inicio"]}–{g["fim"]} {nome}</s> ❌ cancelada' + (f" ({escape(motivo)})" if motivo else ""))
-            else:
-                linhas.append(f'  {g["inicio"]}–{g["fim"]} {nome}{sala}')
-        return linhas
-
     def periodo_semana(self):
         """De hoje até domingo; no fim de semana, a semana seguinte inteira."""
         if self.hoje.weekday() >= 5:
@@ -239,31 +216,74 @@ class Execucao:
             return segunda, mais_dias(segunda, 6), "da próxima semana"
         return self.hoje, mais_dias(self.hoje, 6 - self.hoje.weekday()), "da semana"
 
+    def _linha_item(self, p, com_data: bool) -> str:
+        """Uma prova/entrega do Notion. Prova ou apresentação de hoje ganha ⚠️."""
+        d = para_data(p["data"])
+        hora = f' {p["data"][11:16]}' if len(p["data"]) > 10 else ""
+        quando = f"{nome_dia(d)[:3]} {data_br(d)}{hora}" if com_data else (hora.strip() or "")
+        icone = ICONES.get(TIPO_NOTION_PARA_ICONE.get(p["tipo"], ""), "📌")
+        if d == self.hoje and p["tipo"] in ("Prova", "Apresentação"):
+            icone = "⚠️ " + icone
+        disc = f' ({escape(nome_disciplina(p["disciplina"]))})' if p["disciplina"] else ""
+        return f'  {icone} ' + (f"{quando} — " if quando else "") + f'{escape(p["titulo"])}{disc}'
+
+    @staticmethod
+    def _motivo(p) -> str:
+        m = re.search(r"Motivo: (.+)", p.get("observacoes") or "")
+        return f" — {escape(m.group(1).strip())}" if m else ""
+
     def montar_mensagem(self, proximas) -> str:
+        amanha = mais_dias(self.hoje, 1)
+        _, fim_semana, titulo_semana = self.periodo_semana()
+
+        def cobre(p, dia):
+            inicio = para_data(p["data"])
+            return inicio <= dia <= (para_data(p["fim"]) if p.get("fim") else inicio)
+
+        canceladas = [p for p in proximas if p["tipo"] == "Aula cancelada"]
+        tarefas = sorted((p for p in proximas if p["tipo"] in TIPOS_DA_SEMANA), key=lambda p: p["data"])
         partes = [f"🌅 <b>Bom dia! {nome_dia(self.hoje)}, {data_br(self.hoje)}</b>"]
-        if self.urgentes:
-            partes.append("⚠️ <b>Atenção</b>\n" + "\n".join(self.urgentes))
-        aulas = self.aulas_de_hoje()
-        partes.append("📚 <b>Aulas hoje</b>\n" + ("\n".join(aulas) if aulas else "  Sem aulas hoje."))
-        _, _, titulo_semana = self.periodo_semana()
-        da_semana = [p for p in proximas if p["tipo"] in TIPOS_DA_SEMANA]
-        if da_semana:
-            linhas = []
-            for p in da_semana:
-                d = para_data(p["data"])
-                hora = f' {p["data"][11:16]}' if len(p["data"]) > 10 else ""
-                destaque = " ‼️ <b>HOJE</b>" if d == self.hoje else (" ⚠️ <b>amanhã</b>" if d == mais_dias(self.hoje, 1) else "")
-                icone = ICONES.get(TIPO_NOTION_PARA_ICONE.get(p["tipo"], ""), "📌")
-                linhas.append(f'  {icone} {nome_dia(d)[:3]} {data_br(d)}{hora} — {escape(p["titulo"])} '
-                              f'({escape(nome_disciplina(p["disciplina"]))}){destaque}')
-            partes.append(f"📅 <b>Provas e trabalhos {titulo_semana}</b>\n" + "\n".join(linhas))
-        else:
-            partes.append(f"📅 <b>Provas e trabalhos {titulo_semana}</b>\n  Nenhuma prova ou entrega 🎉")
-        if self.novidades:
-            partes.append("🆕 <b>Novidades</b>\n" + "\n".join(self.novidades))
+
+        # Sem aula na UFAM toda hoje: é a primeira coisa da mensagem.
+        for p in canceladas:
+            if not p["disciplina"] and cobre(p, self.hoje):
+                ate = f' (até {nome_dia(para_data(p["fim"]))[:3]} {data_br(para_data(p["fim"]))})' \
+                    if p.get("fim") and para_data(p["fim"]) > self.hoje else ""
+                partes.append(f'⚠️ <b>{escape(p["titulo"])}</b>{ate}{self._motivo(p)}')
+
+        def secao_dia(titulo, dia):
+            linhas = [f'  ⚠️ <b>{escape(p["titulo"])}</b>{self._motivo(p)}' for p in canceladas
+                      if cobre(p, dia) and (p["disciplina"] or dia != self.hoje)]
+            linhas += [self._linha_item(p, com_data=False) for p in tarefas if para_data(p["data"]) == dia]
+            return f"{titulo}\n" + ("\n".join(linhas) if linhas else "  Nada marcado")
+
+        partes.append(secao_dia(f"📌 <b>Hoje</b> ({nome_dia(self.hoje)[:3]} {data_br(self.hoje)})", self.hoje))
+        partes.append(secao_dia(f"📆 <b>Amanhã</b> ({nome_dia(amanha)[:3]} {data_br(amanha)})", amanha))
+
+        resto = [p for p in tarefas if amanha < para_data(p["data"]) <= fim_semana]
+        partes.append(f"📅 <b>Provas e trabalhos {titulo_semana}</b>\n" + (
+            "\n".join(self._linha_item(p, com_data=True) for p in resto) if resto else "  Nada além disso 🎉"))
+
+        # Aula cancelada de hoje/amanhã já aparece nas seções acima; o resto dos avisos vai para Novidades.
+        avisos = [a for a in self.avisos if not (a["tipo"] == "aula_cancelada" and a["inicio"]
+                  and a["inicio"] <= amanha and (a["fim"] or a["inicio"]) >= self.hoje)]
+        novidades = [("⚠️ " if a["urgente"] else "") + a["linha"] for a in avisos] + self.novidades
+        if novidades:
+            partes.append("🆕 <b>Novidades</b>\n" + "\n".join(novidades))
         if self.erros:
             partes.append("🛠️ <b>Problemas nesta execução</b>\n" + "\n".join(f"  • {escape(e[:200])}" for e in self.erros))
         return "\n\n".join(partes)
+
+    def enviar_atualizacao(self):
+        """Mensagem curta da verificação extra: só sai se apareceu algo novo desde o resumo."""
+        novidades = [("⚠️ " if a["urgente"] else "") + a["linha"] for a in self.avisos] + self.novidades
+        if not novidades:
+            print("Nada novo desde a última execução.")
+            return
+        partes = ["🔔 <b>Chegou coisa nova</b>", "\n".join(novidades)]
+        if self.erros:
+            partes.append("🛠️ <b>Problemas nesta execução</b>\n" + "\n".join(f"  • {escape(e[:200])}" for e in self.erros))
+        self.enviar("\n\n".join(partes))
 
     def enviar(self, texto: str):
         if self.teste:
@@ -273,9 +293,12 @@ class Execucao:
 
     # ---------- fluxo principal ----------
 
-    def rodar(self, forcar: bool):
+    def rodar(self, forcar: bool, verificar: bool = False):
         hoje_iso = self.hoje.isoformat()
-        if not forcar and self.estado.get("ultimoCompleto") == hoje_iso and not self.estado.get("pendente"):
+        ja_rodou = self.estado.get("ultimoCompleto") == hoje_iso and not self.estado.get("pendente")
+        # Verificação extra só faz sentido depois do resumo do dia; se ele ainda não saiu, roda o completo.
+        verificar = verificar and ja_rodou and not forcar
+        if not forcar and not verificar and ja_rodou:
             print("Já rodou hoje. Nada a fazer.")
             return
 
@@ -287,8 +310,10 @@ class Execucao:
         avisos = self.tentar("Classroom (mural)", lambda: buscar_avisos(desde), [])
         atividades = self.tentar("Classroom (atividades)",
                                  lambda: buscar_atividades(self.estado.get("atividadesVistas", {})), [])
+        noticias = self.tentar("Site da UFAM", lambda: buscar_noticias(desde), [])
         ecampus = self.tentar("eCampus", ler_ecampus, None)
-        print(f"{len(emails)} e-mails, {len(avisos)} avisos, {len(atividades)} atividades novas/alteradas")
+        print(f"{len(emails)} e-mails, {len(avisos)} avisos, {len(noticias)} notícias da UFAM, "
+              f"{len(atividades)} atividades novas/alteradas")
 
         self.tentar("Atividades do Classroom", lambda: self.processar_atividades(atividades), None)
 
@@ -298,12 +323,19 @@ class Execucao:
         elif ecampus:
             self.tentar("Notas do eCampus", lambda: self.processar_notas(ecampus["notas"]), None)
 
-        textos = emails + avisos
+        textos = emails + avisos + noticias
         if textos:
             registrados = self.tentar("Notion (pendentes)", lambda: notion.avaliacoes_pendentes(self.hoje), [])
             try:
                 resultado = interpretar(self.hoje, textos, registrados)
             except ClaudeIndisponivel as e:
+                if verificar:
+                    # Não avança "desde": a próxima execução analisa de novo os mesmos e-mails/avisos.
+                    print(f"Claude indisponível: {e}")
+                    self.enviar_atualizacao()
+                    if not self.teste:
+                        salvar_estado(self.estado)
+                    return
                 self.modo_reserva(textos, str(e))
                 return
             self.processar_eventos(resultado.get("eventos", []), {it["id"]: it for it in textos}, registrados)
@@ -314,9 +346,14 @@ class Execucao:
             self.tentar("Notion (itens passados)", lambda: notion.marcar_passados(self.hoje), None)
             self.tentar("Google Calendar (sincronização)", self.sincronizar_calendario, None)
 
-        inicio, fim, _ = self.periodo_semana()
-        proximas = self.tentar("Notion (semana)", lambda: notion.proximas_avaliacoes(inicio, fim), [])
-        self.enviar(self.montar_mensagem(proximas))
+        if verificar:
+            self.enviar_atualizacao()
+        else:
+            _, fim, _ = self.periodo_semana()
+            # Começa uns dias antes para pegar suspensões de vários dias que já estão valendo.
+            proximas = self.tentar("Notion (semana)", lambda: notion.proximas_avaliacoes(
+                mais_dias(self.hoje, -14), max(fim, mais_dias(self.hoje, 1))), [])
+            self.enviar(self.montar_mensagem(proximas))
 
         if not self.teste:
             self.estado.update({"desde": self.inicio.isoformat(), "ultimoCompleto": hoje_iso, "pendente": False})
@@ -356,8 +393,6 @@ class Execucao:
             if urgentes:
                 partes.append("⚠️ <b>Possíveis avisos urgentes</b>\n" + "\n".join(
                     f'  • {escape(u["trecho"])}' for u in urgentes))
-            aulas = self.aulas_de_hoje()
-            partes.append("📚 <b>Aulas hoje</b>\n" + ("\n".join(aulas) if aulas else "  Sem aulas hoje."))
             if self.novidades:
                 partes.append("🆕 <b>Novidades</b>\n" + "\n".join(self.novidades))
             self.enviar("\n\n".join(partes))
@@ -372,10 +407,11 @@ def main():
     parser = argparse.ArgumentParser(description="Bot da faculdade")
     parser.add_argument("--teste", action="store_true", help="não grava nada e imprime a mensagem")
     parser.add_argument("--forcar", action="store_true", help="roda mesmo se já rodou hoje")
+    parser.add_argument("--verificar", action="store_true", help="depois do resumo: só avisa se chegou algo novo")
     args = parser.parse_args()
     execucao = Execucao(teste=args.teste)
     try:
-        execucao.rodar(forcar=args.forcar or args.teste)
+        execucao.rodar(forcar=args.forcar or args.teste, verificar=args.verificar)
     except Exception as e:
         traceback.print_exc()
         if not args.teste:

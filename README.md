@@ -1,6 +1,6 @@
 # Assistente Acadêmico 🎓
 
-Um bot que roda sozinho todo dia às 7h, lê tudo o que chega da faculdade (Google Classroom, e-mails
+Um bot que roda sozinho toda manhã, lê tudo o que chega da faculdade (Google Classroom, e-mails
 e o portal acadêmico eCampus/UFAM), entende avisos escritos em linguagem natural com IA e organiza a
 agenda no **Notion**, no **Google Calendar** e no **Telegram**.
 
@@ -19,38 +19,39 @@ agenda no **Notion**, no **Google Calendar** e no **Telegram**.
 | Google Classroom (2 contas) | Atividades com prazo **e** avisos escritos no mural | API oficial (OAuth, somente leitura) |
 | Gmail (pessoal + institucional) | E-mails de professores, representante, reitoria | API oficial (OAuth, somente leitura) |
 | eCampus (portal da UFAM) | Notas parciais e faltas por disciplina | Login + endpoint interno da página |
+| Site da UFAM | Notas da reitoria sobre suspensão de aulas (qualidade do ar, greve...) | Feed RSS + filtro por palavras-chave |
 
 | Destino | O que recebe |
 |---|---|
 | **Notion** | Painel do semestre (grade da semana, prioridades, estudos, calendário e galeria de disciplinas) alimentado pelos bancos "Avaliações e Notas", "Disciplinas" (média, faltas, limite de faltas) e "Demandas" |
 | **Google Calendar** | Um evento para cada prova, entrega, demanda e aula cancelada, com lembrete de 1 dia |
-| **Telegram** | Resumo diário às 7h |
+| **Telegram** | Resumo diário de manhã e, nas checagens seguintes, só o que chegou de novo |
 
 Exemplo do resumo diário:
 
 ```
-🌅 Bom dia! Quinta, 08/10
+🌅 Bom dia! Quarta, 21/10
 
-⚠️ Atenção
-🔁 1ª Prova Escrita mudou de Seg 05/10 para Quarta 07/10 às 10:00
-    O professor avisou por e-mail que a prova foi adiada.
-❌ Sem aula de Comunicações Digitais — Quinta 08/10
-    Motivo: Professor em banca de defesa
-    Avisado pelo representante da turma.
-🏛️❌ UFAM sem atividades presenciais — de Ter 13/10 a Qua 14/10
-    Motivo: Baixa qualidade do ar causada pelas queimadas
+⚠️ UFAM sem atividades presenciais (até Qui 22/10) — Qualidade do ar
 
-📚 Aulas hoje
-  08:00–10:00 Comunicações Digitais  ❌ cancelada (Professor em banca de defesa)
-  10:00–12:00 Libras
+📌 Hoje (Qua 21/10)
+  ⚠️ 📝 10:00 — 1ª Prova Escrita (Sociologia do Trabalho)
+  📄 23:59 — 2ª Lista de Exercícios (Comunicações Digitais)
+
+📆 Amanhã (Qui 22/10)
+  ⚠️ Sem aula de Comunicações Digitais — Professor em banca
+  📎 23:59 — Lab08 (Sistemas de Controle)
 
 📅 Provas e trabalhos da semana
-  🎤 Sex 09/10 13:59 — 2ª avaliação do projeto (Arquitetura) ⚠️ amanhã
+  🎤 Sex 23/10 13:59 — Avaliação do projeto (Arquitetura)
 
 🆕 Novidades
-📎 Trabalho em grupo sobre Weber — Quarta 21/10
-📊 Arquitetura: nota nova! média 8.50 (E1 8.50)
+⚠️ 🔁 2ª Prova mudou de Seg 26/10 para Quarta 28/10
+📊 Arquitetura: nota nova! média 8.50
 ```
+
+Depois do resumo, checagens extras (`--verificar`) leem só o que chegou desde a última execução e mandam
+uma mensagem curta ("🔔 Chegou coisa nova") apenas se houver novidade.
 
 ---
 
@@ -101,7 +102,7 @@ flowchart LR
   (`claude -p --output-format json`) autenticado com um token OAuth da assinatura Pro
   (`claude setup-token`), guardado como secret.
 - **Degradação graciosa.** Se o Claude estiver indisponível (ex.: limite de uso), um filtro por
-  expressões regulares ainda detecta o urgente ("não haverá aula", "greve", "paralisação") e avisa às 7h;
+  expressões regulares ainda detecta o urgente ("não haverá aula", "greve", "paralisação") e avisa de manhã;
   o dia fica marcado como pendente e o cron tenta de novo a cada hora, sem perder nenhum e-mail
   (a janela de leitura só avança após uma execução completa).
 - **Idempotência.** Cada item tem um `ID externo` (`atividade:<curso>:<id>`, `email:<conta>:<id>`...)

@@ -53,5 +53,13 @@
     "moduloNotas": "/ecampus/home/setModulo/22",
     "paginasNotas": ["/ecampus/notasEFrequencia/index"],
     "periodoNotas": { "ano": "auto", "periodo": "auto" }
+  },
+
+  "ufam": {
+    "ativo": true,
+    "feeds": [
+      { "nome": "Site da UFAM", "url": "https://ufam.edu.br/noticias.html?format=feed&type=rss" },
+      { "nome": "Site da UFAM", "url": "https://ufam.edu.br/noticias-destaque.html?format=feed&type=rss" }
+    ]
   }
 }
