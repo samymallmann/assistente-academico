@@ -224,3 +224,18 @@ def proximas_avaliacoes(desde: date, ate: date) -> list[dict]:
         })
     itens.sort(key=lambda it: it["data"])
     return itens
+
+
+def demandas_pendentes() -> list[dict]:
+    """Tarefas que você mesmo anotou em "Demandas" e ainda não marcou como feitas (com ou sem prazo)."""
+    itens = []
+    for p in _consultar_tudo(CONFIG["notion"]["demandasDbId"], {"property": "Feito", "checkbox": {"equals": False}}):
+        props = p["properties"]
+        titulo = _titulo(props)
+        if not titulo.strip():
+            continue  # linha vazia criada sem querer no Notion
+        prazo = props["Prazo"]["date"]
+        itens.append({"titulo": titulo, "prazo": prazo["start"] if prazo else None,
+                      "prioridade": (props["Prioridade"]["select"] or {}).get("name")})
+    itens.sort(key=lambda it: (it["prazo"] is None, it["prazo"] or ""))
+    return itens

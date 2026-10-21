@@ -232,7 +232,27 @@ class Execucao:
         m = re.search(r"Motivo: (.+)", p.get("observacoes") or "")
         return f" — {escape(m.group(1).strip())}" if m else ""
 
-    def montar_mensagem(self, proximas) -> str:
+    def _secao_demandas(self, demandas) -> str | None:
+        """Suas próprias tarefas (banco Demandas): sempre no fim da mensagem."""
+        if not demandas:
+            return None
+        linhas = []
+        for d in demandas:
+            prazo = para_data(d["prazo"]) if d["prazo"] else None
+            if prazo is None:
+                quando = ""
+            elif prazo < self.hoje:
+                quando = f" — ⚠️ <b>atrasada</b> (era {nome_dia(prazo)[:3]} {data_br(prazo)})"
+            elif prazo == self.hoje:
+                quando = " — ⚠️ <b>hoje</b>"
+            elif prazo == mais_dias(self.hoje, 1):
+                quando = " — ⚠️ <b>amanhã</b>"
+            else:
+                quando = f" — até {nome_dia(prazo)[:3]} {data_br(prazo)}"
+            linhas.append(f'  ▫️ {escape(d["titulo"])}{quando}')
+        return "✅ <b>Minhas demandas</b>\n" + "\n".join(linhas)
+
+    def montar_mensagem(self, proximas, demandas=None) -> str:
         amanha = mais_dias(self.hoje, 1)
         _, fim_semana, titulo_semana = self.periodo_semana()
 
@@ -270,6 +290,8 @@ class Execucao:
         novidades = [("⚠️ " if a["urgente"] else "") + a["linha"] for a in avisos] + self.novidades
         if novidades:
             partes.append("🆕 <b>Novidades</b>\n" + "\n".join(novidades))
+        if secao := self._secao_demandas(demandas):
+            partes.append(secao)
         if self.erros:
             partes.append("🛠️ <b>Problemas nesta execução</b>\n" + "\n".join(f"  • {escape(e[:200])}" for e in self.erros))
         return "\n\n".join(partes)
@@ -353,7 +375,8 @@ class Execucao:
             # Começa uns dias antes para pegar suspensões de vários dias que já estão valendo.
             proximas = self.tentar("Notion (semana)", lambda: notion.proximas_avaliacoes(
                 mais_dias(self.hoje, -14), max(fim, mais_dias(self.hoje, 1))), [])
-            self.enviar(self.montar_mensagem(proximas))
+            demandas = self.tentar("Notion (demandas)", notion.demandas_pendentes, [])
+            self.enviar(self.montar_mensagem(proximas, demandas))
 
         if not self.teste:
             self.estado.update({"desde": self.inicio.isoformat(), "ultimoCompleto": hoje_iso, "pendente": False})
