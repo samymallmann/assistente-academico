@@ -60,8 +60,8 @@ uma mensagem curta ("🔔 Chegou coisa nova") apenas se houver novidade.
 ```mermaid
 flowchart LR
     subgraph Gatilho
-        RT["Rotina do Claude Code na nuvem<br/>06:50: dispara, confere e notifica"] --> GA
-        CR["reservas: cron externo e<br/>cron do GitHub Actions"] -.-> GA
+        CJ["cron externo (cron-job.org)<br/>06:50 → workflow_dispatch"] --> GA
+        CR["reserva: cron do GitHub Actions<br/>06:40 + tentativas até 13:30"] -.-> GA
     end
     GA["GitHub Actions<br/>python -m bot"]
 
@@ -100,10 +100,9 @@ flowchart LR
   - **aula cancelada nunca apaga prova**: se uma aula é suspensa (clima, greve, reunião) no dia de uma prova,
     os dois avisos são mostrados — o professor da prova pode não estar ciente da suspensão.
 - **Disparo confiável.** O agendamento do GitHub Actions costuma atrasar ou pular horários, então quem
-  dispara o workflow às 6:50 é uma rotina do Claude Code na nuvem (Routines): ela chama o
-  `workflow_dispatch`, confere no `state.json` se o dia foi concluído, tenta de novo se falhou e manda uma
-  notificação no app do Claude. Um cron externo e o cron do próprio Actions ficam de reserva; se mais de um
-  disparar, o `state.json` garante que o bot rode uma vez só.
+  dispara o workflow às 6:50 é um cron externo (cron-job.org) chamando o `workflow_dispatch` com um token
+  restrito a este repositório. O cron do próprio Actions fica de reserva; se mais de um disparar, o
+  `state.json` garante que o bot rode uma vez só.
 - **Claude sem custo extra.** Em vez da API paga, o bot roda o Claude Code em modo não interativo
   (`claude -p --output-format json`) autenticado com um token OAuth da assinatura Pro
   (`claude setup-token`), guardado como secret.
@@ -144,7 +143,7 @@ usados.
 | Jeito | Tokens por manhã (estimativa) |
 |---|---|
 | Este bot (1 chamada com os e-mails e avisos novos) | ~20 a 40 mil; **zero** se não chegou nada |
-| Rotina que só dispara e confere o bot | ~100 a 250 mil (quase tudo é o contexto fixo do Claude Code, vindo do cache) |
+| Rotina do Claude Code que só dispara e confere o bot | ~175 a 220 mil (medido; quase tudo é o contexto fixo do Claude Code, vindo do cache) |
 | Um agente fazendo tudo sozinho (abrir cada e-mail, cada turma, Notion e Agenda por ferramentas) | ~0,5 a 2 milhões |
 
 O resumo feito pelo bot sai algo como **20 a 50 vezes mais barato** do que pedir a um agente para montar
