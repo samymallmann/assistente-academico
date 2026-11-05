@@ -31,6 +31,10 @@ def _rodar_claude(prompt: str) -> str:
         raise ClaudeIndisponivel(f"Claude Code saiu com código {proc.returncode}: {(proc.stderr or proc.stdout)[:500]}") from e
     if resultado.get("is_error") or proc.returncode != 0:
         raise ClaudeIndisponivel(f'Claude indisponível: {str(resultado.get("result", proc.stderr))[:500]}')
+    uso = resultado.get("usage") or {}
+    cache = uso.get("cache_read_input_tokens", 0)
+    entrada = uso.get("input_tokens", 0) + uso.get("cache_creation_input_tokens", 0) + cache
+    print(f'Claude: {entrada} tokens de entrada ({cache} do cache) e {uso.get("output_tokens", 0)} de saída')
     return resultado["result"]
 
 

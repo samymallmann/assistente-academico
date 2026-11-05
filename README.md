@@ -60,7 +60,8 @@ uma mensagem curta ("🔔 Chegou coisa nova") apenas se houver novidade.
 ```mermaid
 flowchart LR
     subgraph Gatilho
-        CR["cron do GitHub Actions<br/>06:40 + novas tentativas até 13:30"] --> GA
+        RT["Rotina do Claude Code na nuvem<br/>06:50: dispara, confere e notifica"] --> GA
+        CR["reservas: cron externo e<br/>cron do GitHub Actions"] -.-> GA
     end
     GA["GitHub Actions<br/>python -m bot"]
 
@@ -98,6 +99,11 @@ flowchart LR
     é atualizado (`"substitui": "R1"`) em vez de duplicado;
   - **aula cancelada nunca apaga prova**: se uma aula é suspensa (clima, greve, reunião) no dia de uma prova,
     os dois avisos são mostrados — o professor da prova pode não estar ciente da suspensão.
+- **Disparo confiável.** O agendamento do GitHub Actions costuma atrasar ou pular horários, então quem
+  dispara o workflow às 6:50 é uma rotina do Claude Code na nuvem (Routines): ela chama o
+  `workflow_dispatch`, confere no `state.json` se o dia foi concluído, tenta de novo se falhou e manda uma
+  notificação no app do Claude. Um cron externo e o cron do próprio Actions ficam de reserva; se mais de um
+  disparar, o `state.json` garante que o bot rode uma vez só.
 - **Claude sem custo extra.** Em vez da API paga, o bot roda o Claude Code em modo não interativo
   (`claude -p --output-format json`) autenticado com um token OAuth da assinatura Pro
   (`claude setup-token`), guardado como secret.
@@ -127,6 +133,22 @@ flowchart LR
 - **Engenharia reversa leve do eCampus.** A página de notas carrega a tabela via AJAX
   (`POST notasEFrequencia/getNotas` com ano e período); o bot chama esse endpoint direto e converte a
   tabela HTML em linhas, detectando notas ainda não lançadas.
+
+### Quanto do Claude ele gasta
+
+O modelo só é chamado para **texto livre** (e-mails e avisos do mural): uma chamada por execução, e só se
+chegou algo novo. O resto — atividades do Classroom, notas do eCampus, notícias da UFAM (filtradas por
+palavras-chave), Notion e Agenda — é lido por código. Cada execução registra no log do Actions os tokens
+usados.
+
+| Jeito | Tokens por manhã (estimativa) |
+|---|---|
+| Este bot (1 chamada com os e-mails e avisos novos) | ~20 a 40 mil; **zero** se não chegou nada |
+| Rotina que só dispara e confere o bot | ~100 a 250 mil (quase tudo é o contexto fixo do Claude Code, vindo do cache) |
+| Um agente fazendo tudo sozinho (abrir cada e-mail, cada turma, Notion e Agenda por ferramentas) | ~0,5 a 2 milhões |
+
+O resumo feito pelo bot sai algo como **20 a 50 vezes mais barato** do que pedir a um agente para montar
+tudo sozinho a cada manhã — e sempre no mesmo formato. Isso importa na assinatura Pro, que tem limite de uso.
 
 ### Segurança e privacidade
 
